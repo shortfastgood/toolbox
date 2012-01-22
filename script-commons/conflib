@@ -1,0 +1,170 @@
+#!/bin/bash
+#
+# name        : conflib
+# description : Ubuntu server toolbox configuration script library.
+#
+# 2010-01-21 daniele.denti@bluewin.ch 1.0
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#
+# $1 the repository to add
+#
+add_apt_repository () {
+  if [ -x add-apt-repository ]; then
+    apt-get install python-software-properties --yes --quiet
+  fi
+  check_apt_repository "$1"
+  if [ "$?" != "0" ]; then
+    add-apt-repository "$1"
+    apt-get update --yes --quiet
+  fi
+}
+
+# add and configure apache James v2
+apache_james_v2 () {
+
+  sun_java
+  
+  if [ ! -d /home/james/james-2.3.2 ]; then
+    log_success_msg "Apache James: download software"
+     
+    wget -O /tmp/apache-james-2.3.2.zip -t 3 -T 2 http://www.apache.org/dist/james/server/apache-james-2.3.2.zip
+  
+    fgrep -e james /etc/passwd
+    if [ "$?" != "0" ]; then
+      useradd -c "Apache James file owner" -m -s /bin/bash james
+    fi
+  
+    cd /home/james
+    if [ ! -x /usr/bin/unzip ]; then
+      apt-get install unzip --yes --quiet
+    fi
+    sudo -u james unzip  /tmp/apache-james-2.3.2.zip
+  fi
+  
+  log_success_msg "Apache James: create folders"
+  
+  if [ ! -d /var/mail/inboxes ]; then
+    mkdir -p /var/mail/inboxes
+    chown -R james:james /var/mail/inboxes
+  fi
+  if [ ! -d /var/mail/outgoing ]; then
+    mkdir -p /var/mail/outgoing
+    chown -R james:james /var/mail/outgoing
+  fi
+  if [ ! -d /var/users ]; then
+    mkdir -p /var/users
+    chown -R james:james /var/users
+  fi
+  if [ ! -d /var/mail/spool ]; then
+    mkdir -p /var/mail/spool
+    chown -R james:james /var/mail/spool
+  fi
+  if [ ! -d /var/nntp/groups ]; then
+    mkdir -p /var/nntp/groups
+    chown -R james:james /var/nntp/groups
+  fi
+  if [ ! -d /var/nntp/temp ]; then
+    mkdir -p /var/nntp/temp
+    chown -R james:james /var/nntp/temp
+  fi
+  if [ ! -d /var/nntp/articleid ]; then
+    mkdir -p /var/nntp/articleid
+    chown -R james:james /var/nntp/articleid
+  fi
+  if [ ! -d /var/nntp/spool ]; then
+    mkdir -p /var/nntp/spool
+    chown -R james:james /var/nntp/spool
+  fi
+  
+  log_success_msg "Apache James: configure"
+
+  cd /home/james/james-2.3.2
+  if [ ! -d /home/james/james-2.3.2/apps/james ]; then
+    sudo -u james mkdir -p /home/james/james-2.3.2/apps/james
+  fi
+  cd apps/james
+  sudo -u james jar -xvf /home/james/james-2.3.2/apps/james.sar SAR-INF/config.xml >/dev/null
+  
+  sed -i s/'enableForwarding="true"'/'enableForwarding="false"'/g SAR-INF/config.xml
+  sed -i s/'<port>110<\/port>'/'<port>4110<\/port>'/g SAR-INF/config.xml
+  sed -i s/'<port>25<\/port>'/'<port>2525<\/port>'/g SAR-INF/config.xml
+  sed -i s/'<port>119<\/port>'/'<port>4119<\/port>'/g SAR-INF/config.xml
+  sed -i s/'<authorizedAddresses>127.0.0.0\/8<\/authorizedAddresses>'/'<authorizedAddresses>127.0.0.0\/8,192.168.1.0\/24<\/authorizedAddresses>'/g SAR-INF/config.xml 
+  
+  log_success_msg "Apache James: add mail domains"
+  
+  fgrep mail.canistracci.oil SAR-INF/config.xml >/dev/null
+  if [ "$?" != "0" ]; then
+    sed -i '/<servername>localhost<\/servername>/ a\
+         <servername>mail.canistracci.oil<\/servername>' SAR-INF/config.xml
+  fi
+  
+  cd ~
+  
+  log_success_msg "Apache James: configure as startup service"
+  
+  if [ ! -L /etc/rc0.d/K90apache-james ]; then
+    if [ -f apache-james ]; then
+      cp -p apache-james /etc/init.d
+      update-rc.d apache-james start 90 2 3 4 5 . stop 90 S 0 1 6 .
+    fi
+  fi
+  
+  log_success_msg "Apache James: ready for use"
+}
+
+#
+# $1 the repository to check
+#
+check_apt_repository () {
+  cat /etc/apt/sources.list | grep "^$1"
+  return $?
+}
+
+# add and configure duplicity
+duplicity () {
+  CODENAME=`lsb_release -c | cut -f2 -d":" | sed 's/^\t*//;'`
+  add_apt_repository "deb http://ppa.launchpad.net/duplicity-team/ppa/ubuntu ${CODENAME} main"
+  
+  apt-get install duplicity --yes --quiet
+}
+
+# add and configure SUN java
+sun_java ()
+{
+  log_success_msg "Java: check vendor"
+  IS_SUN_JAVA=1
+  if [ -x /usr/bin/java ]; then
+    cat >/tmp/Vendor.java <<!
+public class Vendor {
+  public static void main (String[] args) {
+    System.out.printf("%s %s\n", System.getProperty("java.vendor"), System.getProperty("java.version"));
+  }
+}
+!
+    javac /tmp/Vendor.java
+    java -classpath /tmp Vendor | grep "Sun Microsystems" >/dev/null
+    IS_SUN_JAVA=$?
+  fi
+
+  if [ "${IS_SUN_JAVA}" != "0" ]; then
+    CODENAME=`lsb_release -c | cut -f2 -d":" | sed 's/^\t*//;'`
+    add_apt_repository "http://ppa.launchpad.net/ferramroberto/java/ubuntu"
+    apt-get install sun-java6-jre sun-java6-jdk sun-java6-fonts --yes --quiet
+  else
+    log_success_msg "Java: vendor SUN Microsystem OK"
+  fi
+}

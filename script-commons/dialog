@@ -1,0 +1,217 @@
+#!/bin/bash
+#
+# name        : dialog
+# description : Ubuntu server toolbox dialog script library.
+#
+# 2010-01-21 daniele.denti@bluewin.ch 1.0
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+COLOR_NO=`tput colors`
+
+# display input box ---------------------------------------------------------
+#
+# $1: vertical position
+# $2: caption
+# $3: default text
+#
+dbox ()
+{
+  tput cup $1 10
+  dsetc 7 4
+  echo -n "                   "
+  tput cup $1 10
+  echo -n " $2:"
+  dsetc 6 0
+  tput cup $1 30
+  echo -n "                                      "
+  tput cup $1 30
+  if [[ -n $3 ]] ;
+    then
+      echo -n "$3"
+  fi
+  tput cup 21 0
+  dsetc
+}
+
+# display and read from input box -------------------------------------------
+#
+# $1: vertical position
+# $2: caption
+#
+dbread ()
+{
+  dbox $1 "$2" ""
+  tput cup $1 30
+  read
+  tput cup 21 0
+}
+
+# display gauge -------------------------------------------------------------
+#
+# $1: vertical position
+# $2: gauge lenght
+# $3: caption
+# $4: value
+# $5: gauge color
+#
+dgauge ()
+{
+  tput cup $1 0
+  tput el        # clear to end of line
+  echo "$3"
+  tput el
+  dsetc 0 $5
+  typeset -i LEN=$2
+  while (( LEN > 0 ))
+    do
+      echo -n " "
+      typeset -i LEN=$LEN-1
+  done
+  echo " $4"
+}
+
+# display menu line ---------------------------------------------------------
+#
+# $1: vertical position
+# $2: menu text
+#
+dmenu ()
+{
+  tput cup $1 10
+  dsetc 6 4
+  echo "                                                           "
+  tput cup $1 10
+  echo -n " $2"
+  tput cup 21 0
+  dsetc
+}
+
+# display messages ----------------------------------------------------------
+#
+# $1: message text
+#
+dmsg ()
+{
+  tput cup 19 10
+  dsetc 7 4
+  echo "                                                           "
+  tput cup 19 10
+  echo -n " $1"
+  tput cup 21 0
+  dsetc
+}
+
+# display input prompt ------------------------------------------------------
+#
+# $1: prompt text
+#
+dprompt ()
+{
+  tput cup 19 10
+  dsetc 7 4
+  echo -n "                                                           "
+  tput cup 19 10
+  echo -n " $1: "
+  read
+  tput cup 21 0
+  dsetc
+}
+
+# change display colors -----------------------------------------------------
+#
+#     color numbers :
+#
+#     0   black
+#     1   red
+#     2   green
+#     3
+#     4   blue
+#     5   magenta
+#     6   cyan
+#     7   white
+#
+# $1: foreground color
+# $2: background color
+#
+dsetc ()
+{
+  BG=$2; BG=${BG:=0}
+  FG=$1; FG=${FG:=7}
+
+  if [ ${COLOR_NO} -lt 8 ] ;
+    then
+      if [ ${BG} -gt 0 ] ;
+        then
+          tput smso ;
+      else
+          tput rmso ;
+      fi ;
+  else
+      tput setaf ${FG}
+      tput setab ${BG} ;
+  fi
+}
+
+dtest ()
+{
+    TERM=${TERM:=unknown}
+
+    case ${TERM} in
+        cygwin) echo "The ${TERM} terminal is supported with ${COLOR_NO} colors."
+                ;;
+             *) echo "The ${TERM} terminal is unsupported!"
+                ;;
+    esac
+}
+
+# display title -------------------------------------------------------------
+#
+# $1: title
+#
+dtitle ()
+{
+  DATE=`date '+%d.%m.%Y'`
+  tput cup 5 10
+  dsetc 7 4
+  echo "-----------------------------------------------------------"
+  tput cup 6 10
+  echo " $1"
+  tput cup 6 58
+  echo $DATE
+  tput cup 7 10
+  echo "-----------------------------------------------------------"
+  tput cup 18 10
+  echo "-----------------------------------------------------------"
+  tput cup 21 0
+  dsetc
+}
+
+# display backup window -----------------------------------------------------
+#
+dwin ()
+{
+  tput cup 5 10
+  dsetc 7 4
+  typeset -i INDEX=0
+  while (( INDEX < 15 ))
+    do
+      typeset -i LT=INDEX+5
+      tput cup $LT 10
+      echo "                                                           "
+      typeset -i INDEX=INDEX+1 ;
+  done
+  tput cup 21 0
+  dsetc
+}

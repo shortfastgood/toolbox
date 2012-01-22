@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# name        : apache-james
+# description : Service init script for Apache James v2 on Debian/Ubuntu
+#
+# 2010-01-21 daniele.denti@bluewin.ch 1.0
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+### BEGIN INIT INFO
+# Provides:          apache-james
+# Required-Start:    $local_fs $remote_fs $network eTSrv
+# Required-Stop:     $local_fs $remote_fs $network
+# Should-Start:      $all
+# Should-Stop:       $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start Apache James Mail Server
+# Description:       Startup/Shutdown script for the Apache James Mail Server
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+PHOENIX_RUNTIME_USER=james
+PHOENIX_HOME=/home/${PHOENIX_RUNTIME_USER}/james-2.3.2
+
+#setup time between signals to kill phoenix 
+if [ -z "$PHOENIX_KILLDELAY" ] ; then
+  PHOENIX_KILLDELAY=5
+fi
+
+if [ -z "$PHOENIX_TMPDIR" ] ; then
+  # Define the java.io.tmpdir to use for Phoenix
+  PHOENIX_TMPDIR="$PHOENIX_HOME"/temp
+  sudo -u james mkdir -p "$PHOENIX_TMPDIR"
+fi
+
+# The first existing directory is used for JAVA_HOME (if JAVA_HOME is not
+# defined in /etc/default/jetty). Should contain a list of space separated directories.
+JDK_DIRS="
+	  /usr/lib/jvm/default-java \
+	  /usr/lib/jvm/java-6-sun \
+	  /usr/lib/jvm/java-6-openjdk \
+	  /usr/lib/jvm/java-1.5.0-sun \
+	  /usr/lib/jvm/java-gcj \
+	  /usr/lib/j2sdk1.6-sun \
+	  /usr/lib/j2sdk1.5-sun \
+	  /usr/lib/j2sdk1.5-ibm \
+	  /usr/lib/j2sdk1.4-sun \
+	  /usr/lib/j2sdk1.4 \
+	  /usr/lib/j2se/1.4 \
+	  /usr/lib/kaffe/ \
+	 "
+# Look for the right JVM to use
+for jdir in $JDK_DIRS; do
+	if [ -d "$jdir" -a -z "${JAVA_HOME}" ]; then
+		JAVA_HOME="$jdir"
+	fi
+done
+export JAVA_HOME
+
+export JAVA="$JAVA_HOME/bin/java"
+
+JVM_EXT_DIRS="$PHOENIX_HOME/lib:$PHOENIX_HOME/tools/lib"
+JVM_OPTS="-Djava.ext.dirs=$JVM_EXT_DIRS"
+
+if [ "$PHOENIX_SECURE" != "false" ] ; then
+  # Make phoenix run with security manager enabled
+  JVM_OPTS="$JVM_OPTS -Djava.security.manager"
+fi
+
+# Make sure we don't run with a never expiring cache for InetAddress
+# In Phoenix Main this is read and applied as Security.setProperty
+PHOENIX_JVM_OPTS="$PHOENIX_JVM_OPTS -Dnetworkaddress.cache.ttl=300"
+
+# change to the bin directory
+cd $PHOENIX_HOME/bin
+
+# Get the run cmd
+RUN_CMD="${JAVA} ${JVM_OPTS} \
+    $DEBUG \
+    -Djava.security.policy=jar:file:$PHOENIX_HOME/bin/phoenix-loader.jar!/META-INF/java.policy \
+    ${PHOENIX_JVM_OPTS} \
+    -Dphoenix.home="${PHOENIX_HOME}" \
+    -Djava.io.tmpdir="${PHOENIX_TMPDIR}" \
+    -jar "$PHOENIX_HOME/bin/phoenix-loader.jar" "
+
+#####################################################
+# Find a PID for the pid file
+#####################################################
+if [  -z "$PHOENIX_PID" ]; then
+  PHOENIX_PID="$PHOENIX_TMPDIR/phoenix.pid"
+fi
+
+case "$1" in
+  start)  shift
+          log_daemon_msg "Starting mail service" "JAMES"
+          cd ${PHOENIX_HOME}
+          sudo -u james nohup $RUN_CMD $@ >/dev/null 2>&1 &
+          echo $! > $PHOENIX_PID
+          COUNT=`pgrep -clf phoenix`
+          if [ "${COUNT}" != "0" ]; then
+            log_end_msg 0
+          else
+            log_end_msg 1
+            exit 1
+          fi 
+          ;;
+          
+  status) shift
+          COUNT=`pgrep -clf phoenix`
+          if [ "${COUNT}" != "0" ]; then
+            log_success_msg "James is running"
+          else
+            log_success_msg "James is down"
+          fi
+          ;;
+         
+  stop)  shift
+         log_daemon_msg "Stopping mail service" "JAMES"
+         PID=`cat $PHOENIX_PID 2>/dev/null`
+         kill $PID 2>/dev/null
+         sleep $PHOENIX_KILLDELAY
+         kill -9 $PID 2>/dev/null
+         rm -f $PHOENIX_PID
+         log_end_msg 0
+         ;;
+         
+      *) echo "Usage: /etc/init.d/james {start|stop|status}"
+         exit 1
+         ;;
+esac
