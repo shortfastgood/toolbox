@@ -4,6 +4,7 @@
 # description : Ubuntu server toolbox configuration script library.
 #
 # 2010-01-21 daniele.denti@bluewin.ch 1.0
+# 2012-10-26 daniele.denti@bluewin.ch 1.1 bug fix
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,6 +57,10 @@ apache_james_v2 () {
   
   log_success_msg "Apache James: create folders"
   
+  if [ ! -d /var/mail/error ]; then
+    mkdir -p /var/mail/error
+    chown -R james:james /var/mail/error
+  fi
   if [ ! -d /var/mail/inboxes ]; then
     mkdir -p /var/mail/inboxes
     chown -R james:james /var/mail/inboxes
@@ -117,8 +122,9 @@ apache_james_v2 () {
   log_success_msg "Apache James: configure as startup service"
   
   if [ ! -L /etc/rc0.d/K90apache-james ]; then
-    if [ -f apache-james ]; then
+    if [ -f /etc/init.d/apache-james ]; then
       cp -p apache-james /etc/init.d
+      chmod +x /etc/init.d/apache-james
       update-rc.d apache-james start 90 2 3 4 5 . stop 90 S 0 1 6 .
     fi
   fi
