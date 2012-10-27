@@ -49,9 +49,12 @@ apache_james_v2 () {
   
 
   if [ ! -d /home/james/james-2.3.2 ]; then
-    log_success_msg "Apache James: download software"
+    log_action_begin_msg "Apache James: download software"
      
     wget -O /tmp/apache-james-2.3.2.zip -t 3 -T 2 http://www.apache.org/dist/james/server/apache-james-2.3.2.zip
+    if [ "$?" != "0" ]; then
+      log_action_end_msg 1 "download failed"
+    fi
   
     fgrep -e james /etc/passwd
     if [ "$?" != "0" ]; then
@@ -62,7 +65,7 @@ apache_james_v2 () {
     if [ ! -x /usr/bin/unzip ]; then
       apt-get install unzip --yes --quiet
     fi
-    sudo -u james unzip  /tmp/apache-james-2.3.2.zip
+    sudo -u james unzip /tmp/apache-james-2.3.2.zip
   fi
   
   log_action_begin_msg "Apache James: create folders"
@@ -202,4 +205,53 @@ get_java_home () {
     log_action_end_msg 1 "Cannot execute ${JAVA}"
     exit 1
   fi 
+}
+
+reprepro () {
+
+  log_action_begin_msg "reprepro: installing software"
+   
+  if [ ! -x /usr/bin/reprepro ]; then
+    apt-get install reprepro --yes --force-yes --quiet
+  fi
+   
+  log_action_end_msg 0
+
+  log_action_begin_msg "reprepro: create folders"
+   
+  # create the folders for the Ubuntu distributions
+  mkdir -p /var/srv/reprepro/ubuntu/{conf,dists,incoming,indices,logs,pool,project,tmp}
+   
+  log_action_end_msg 0
+  
+  log_action_begin_msg "reprepro: configuration" 
+  
+  cat >/var/srv/reprepro/ubuntu/conf/distributions <<!
+Origin: Petrol Package Repository
+Label: Petrol Package Repository for Lucid
+Codename: lucid
+Architectures: i386 amd64 source
+Components: non-free
+Description: Locale Ubuntu 10.04 LTS repository
+SignWith: yes
+
+Origin: Petrol Package Repository
+Label: Petrol Package Repository for Precise
+Codename: precise
+Architectures: i386 amd64 source
+Components: non-free
+Description: Locale Ubuntu 12.04 LTS Repository
+SignWith: yes
+!
+
+  nano /var/srv/reprepro/ubuntu/conf/distributions
+  
+  log_action_end_msg 0
+  
+  cat > /var/srv/reprepro/ubuntu/conf/options <<!
+verbose
+basedir /var/srv/reprepro/ubuntu
+ask-passphrase
+!
+
 }
