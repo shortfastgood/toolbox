@@ -3,8 +3,8 @@
 # name        : configure.sh
 # description : Apache James toolbox configuration script example.
 #
-# 2010-01-21 daniele.denti@bluewin.ch 1.0
-# 2010-01-21 daniele.denti@bluewin.ch 1.0
+# 2010-01-21 daniele.denti@bluewin.ch 1.0 first version
+# 2010-01-27 daniele.denti@bluewin.ch 1.1 cleanup
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
