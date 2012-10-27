@@ -4,7 +4,8 @@
 # description : Service init script for Apache James v2 on Debian/Ubuntu
 #
 # 2010-01-21 daniele.denti@bluewin.ch 1.0
-# 2012-10-26 daniele.denti@bluewin.ch 1.1 another java location
+# 2012-10-27 daniele.denti@bluewin.ch 1.1 java-7-openjdk[-i386] added,
+#                                         check for java added.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -47,10 +48,14 @@ if [ -z "$PHOENIX_TMPDIR" ] ; then
   sudo -u james mkdir -p "$PHOENIX_TMPDIR"
 fi
 
+log_action_begin_msg "Looking for JDK home"
+
 # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not
 # defined in /etc/default/jetty). Should contain a list of space separated directories.
 JDK_DIRS="
 	  /usr/lib/jvm/default-java \
+	  /usr/lib/jvm/java-7-openjdk \
+	  /usr/lib/jvm/java-7-openjdk-i386 \
 	  /usr/lib/jvm/java-6-sun \
 	  /usr/lib/jvm/java-6-openjdk \
 	  /usr/lib/jvm/java-1.5.0-sun \
@@ -62,7 +67,6 @@ JDK_DIRS="
 	  /usr/lib/j2sdk1.4 \
 	  /usr/lib/j2se/1.4 \
 	  /usr/lib/kaffe/ \
-    /usr/local/java/jdk1.6.0_32 \
 	 "
 # Look for the right JVM to use
 for jdir in $JDK_DIRS; do
@@ -73,6 +77,13 @@ done
 export JAVA_HOME
 
 export JAVA="$JAVA_HOME/bin/java"
+
+if [ -x ${JAVA} ]; then
+  log_action_end_msg 0
+else
+  log_action_end_msg 1 "Cannot execute ${JAVA}"
+  exit 1
+fi 
 
 JVM_EXT_DIRS="$PHOENIX_HOME/lib:$PHOENIX_HOME/tools/lib"
 JVM_OPTS="-Djava.ext.dirs=$JVM_EXT_DIRS"
@@ -125,7 +136,7 @@ case "$1" in
           if [ "${COUNT}" != "0" ]; then
             log_success_msg "James is running"
           else
-            log_success_msg "James is down"
+            log_failure_msg "James is down"
           fi
           ;;
          

@@ -4,6 +4,7 @@
 # description : Apache James toolbox configuration script example.
 #
 # 2010-01-21 daniele.denti@bluewin.ch 1.0
+# 2010-01-21 daniele.denti@bluewin.ch 1.0
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,9 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-DEFAULT_PROMPT="Press <enter> to continue"
-DEFAULT_TITLE="Apache-James configurator"
-
 SCRIPT_FOLDER=`dirname $0`
 
 #
@@ -32,7 +30,7 @@ SCRIPT_FOLDER=`dirname $0`
 
 # do not run as root
 if [ "`whoami`" != "root" ]; then
- log_success_msg "You have to be root to run this script ! `whoami`"
+ log_failure_msg "You have to be root to run this script ! `whoami`"
  exit 1
 fi
 

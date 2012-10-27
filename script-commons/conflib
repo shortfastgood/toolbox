@@ -4,7 +4,8 @@
 # description : Ubuntu server toolbox configuration script library.
 #
 # 2010-01-21 daniele.denti@bluewin.ch 1.0
-# 2012-10-26 daniele.denti@bluewin.ch 1.1 bug fix
+# 2012-10-27 daniele.denti@bluewin.ch 1.1 bug fix apache_james_v2
+#                                         SUN java installation removed.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,8 +37,17 @@ add_apt_repository () {
 # add and configure apache James v2
 apache_james_v2 () {
 
-  sun_java
+  get_java_home
+  log_action_begin_msg "Looking for JAR binary"
+  JAR=${JAVA_HOME}/bin/jar
+  if [ -x ${JAR} ]; then
+    log_action_end_msg 0
+  else
+    log_action_end_msg 1 "Cannot execute ${JAR}"
+    exit 1
+  fi 
   
+
   if [ ! -d /home/james/james-2.3.2 ]; then
     log_success_msg "Apache James: download software"
      
@@ -55,7 +65,7 @@ apache_james_v2 () {
     sudo -u james unzip  /tmp/apache-james-2.3.2.zip
   fi
   
-  log_success_msg "Apache James: create folders"
+  log_action_begin_msg "Apache James: create folders"
   
   if [ ! -d /var/mail/error ]; then
     mkdir -p /var/mail/error
@@ -93,15 +103,16 @@ apache_james_v2 () {
     mkdir -p /var/nntp/spool
     chown -R james:james /var/nntp/spool
   fi
+  log_action_end_msg 0
   
-  log_success_msg "Apache James: configure"
+  log_action_begin_msg "Apache James: configure"
 
   cd /home/james/james-2.3.2
   if [ ! -d /home/james/james-2.3.2/apps/james ]; then
     sudo -u james mkdir -p /home/james/james-2.3.2/apps/james
   fi
   cd apps/james
-  sudo -u james jar -xvf /home/james/james-2.3.2/apps/james.sar SAR-INF/config.xml >/dev/null
+  sudo -u james ${JAR} -xvf /home/james/james-2.3.2/apps/james.sar SAR-INF/config.xml >/dev/null
   
   sed -i s/'enableForwarding="true"'/'enableForwarding="false"'/g SAR-INF/config.xml
   sed -i s/'<port>110<\/port>'/'<port>4110<\/port>'/g SAR-INF/config.xml
@@ -109,7 +120,9 @@ apache_james_v2 () {
   sed -i s/'<port>119<\/port>'/'<port>4119<\/port>'/g SAR-INF/config.xml
   sed -i s/'<authorizedAddresses>127.0.0.0\/8<\/authorizedAddresses>'/'<authorizedAddresses>127.0.0.0\/8,192.168.1.0\/24<\/authorizedAddresses>'/g SAR-INF/config.xml 
   
-  log_success_msg "Apache James: add mail domains"
+  log_action_end_msg 0
+  
+  log_action_begin_msg "Apache James: add mail domains"
   
   fgrep mail.canistracci.oil SAR-INF/config.xml >/dev/null
   if [ "$?" != "0" ]; then
@@ -117,9 +130,11 @@ apache_james_v2 () {
          <servername>mail.canistracci.oil<\/servername>' SAR-INF/config.xml
   fi
   
+  log_action_end_msg 0
+  
   cd ~
   
-  log_success_msg "Apache James: configure as startup service"
+  log_action_begin_msg "Apache James: configure as startup service"
   
   if [ ! -L /etc/rc0.d/K90apache-james ]; then
     if [ -f /etc/init.d/apache-james ]; then
@@ -128,6 +143,8 @@ apache_james_v2 () {
       update-rc.d apache-james start 90 2 3 4 5 . stop 90 S 0 1 6 .
     fi
   fi
+  
+  log_action_end_msg 0
   
   log_success_msg "Apache James: ready for use"
 }
@@ -148,29 +165,41 @@ duplicity () {
   apt-get install duplicity --yes --quiet
 }
 
-# add and configure SUN java
-sun_java ()
-{
-  log_success_msg "Java: check vendor"
-  IS_SUN_JAVA=1
-  if [ -x /usr/bin/java ]; then
-    cat >/tmp/Vendor.java <<!
-public class Vendor {
-  public static void main (String[] args) {
-    System.out.printf("%s %s\n", System.getProperty("java.vendor"), System.getProperty("java.version"));
-  }
-}
-!
-    javac /tmp/Vendor.java
-    java -classpath /tmp Vendor | grep "Sun Microsystems" >/dev/null
-    IS_SUN_JAVA=$?
-  fi
-
-  if [ "${IS_SUN_JAVA}" != "0" ]; then
-    CODENAME=`lsb_release -c | cut -f2 -d":" | sed 's/^\t*//;'`
-    add_apt_repository "http://ppa.launchpad.net/ferramroberto/java/ubuntu"
-    apt-get install sun-java6-jre sun-java6-jdk sun-java6-fonts --yes --quiet
+get_java_home () {
+  log_action_begin_msg "Looking for JDK home"
+  
+  # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not
+  # defined in /etc/default/jetty). Should contain a list of space separated directories.
+  JDK_DIRS="
+  	  /usr/lib/jvm/default-java \
+  	  /usr/lib/jvm/java-7-openjdk \
+  	  /usr/lib/jvm/java-7-openjdk-i386 \
+  	  /usr/lib/jvm/java-6-sun \
+  	  /usr/lib/jvm/java-6-openjdk \
+  	  /usr/lib/jvm/java-1.5.0-sun \
+  	  /usr/lib/jvm/java-gcj \
+  	  /usr/lib/j2sdk1.6-sun \
+  	  /usr/lib/j2sdk1.5-sun \
+  	  /usr/lib/j2sdk1.5-ibm \
+  	  /usr/lib/j2sdk1.4-sun \
+  	  /usr/lib/j2sdk1.4 \
+  	  /usr/lib/j2se/1.4 \
+  	  /usr/lib/kaffe/ \
+  	 "
+  # Look for the right JVM to use
+  for jdir in $JDK_DIRS; do
+  	if [ -d "$jdir" -a -z "${JAVA_HOME}" ]; then
+  		JAVA_HOME="$jdir"
+  	fi
+  done
+  export JAVA_HOME
+  
+  export JAVA="$JAVA_HOME/bin/java"
+  
+  if [ -x ${JAVA} ]; then
+    log_action_end_msg 0
   else
-    log_success_msg "Java: vendor SUN Microsystem OK"
-  fi
+    log_action_end_msg 1 "Cannot execute ${JAVA}"
+    exit 1
+  fi 
 }
